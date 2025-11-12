@@ -4,9 +4,9 @@ import cv2 as cv
 from jetbot import Camera, bgr8_to_jpeg
 import ipywidgets.widgets as widgets
 from IPython.display import display
+from jetbot import Robot
 
-
-from detector import YoloDetector
+from Detector import YoloDetector
 
 
 class NotebookYoloApp:
@@ -24,41 +24,50 @@ class NotebookYoloApp:
         self.nms_threshold = 0.4
 
 
+
+class NotebookYoloApp:
+    def __init__(self, yolo_cfg, yolo_weights, coco_names, use_cuda=False, width=416, height=416):
+        self.detector = YoloDetector(yolo_cfg, yolo_weights, coco_names, use_cuda)
+        self.camera = Camera.instance(width=224, height=224)
+        self.image_widget = widgets.Image(format='jpeg', width=640, height=480)
+        self._running = False
+        self._thread = None
+
     def _process_loop(self):
+        from jetbot import Robot
+        import time
+        robot = Robot()
+
         while self._running:
-            frame = self.camera.value # BGR numpy array
+            frame = self.camera.value
             if frame is None:
                 time.sleep(0.01)
                 continue
 
-            detections, t = self.detector.detect(frame, conf_threshold=self.conf_threshold, nms_threshold=self.nms_threshold)
+            detections, t = self.detector.detect(frame)
             self.detector.draw_detections(frame, detections)
-            overlay = f"inference={t*1000:.1f}ms" # ms
-            cv.putText(frame, overlay, (10, 20), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 1)
 
-            jpeg = bgr8_to_jpeg(frame)
-            # update widget
-            self.image_widget.value = jpeg
-            # small sleep to yield
+            # Example simple avoidance logic
+            too_close = any((w * h) > 20000 for (x, y, w, h) in [d['box'] for d in detections])
+            if too_close:
+                robot.stop()
+            else:
+                robot.forward(0.3)
+
+            self.image_widget.value = bgr8_to_jpeg(frame)
             time.sleep(0.01)
 
-
     def start(self):
-        if self._running:
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._process_loop, daemon=True)
-        self._thread.start()
-        print('Notebook Yolo App started')
-
+        if not self._running:
+            self._running = True
+            self._thread = threading.Thread(target=self._process_loop)
+            self._thread.start()
 
     def stop(self):
-        if not self._running:
-            return
-        self._running = False
-        self._thread.join(timeout=1.0)
-        self.camera.stop()
-        print('Notebook Yolo App stopped')
+        if self._running:
+            self._running = False
+            if self._thread is not None:
+                self._thread.join()
 
 
 
