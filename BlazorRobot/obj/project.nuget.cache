@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "1aObdEuwXqY=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\BlazorRobot\\BlazorRobot.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\fredd\\.nuget\\packages\\dapper\\2.1.66\\dapper.2.1.66.nupkg.sha512",
+    "C:\\Users\\fredd\\.nuget\\packages\\microsoft.extensions.dependencyinjection.abstractions\\8.0.2\\microsoft.extensions.dependencyinjection.abstractions.8.0.2.nupkg.sha512",
+    "C:\\Users\\fredd\\.nuget\\packages\\microsoft.extensions.logging.abstractions\\8.0.2\\microsoft.extensions.logging.abstractions.8.0.2.nupkg.sha512",
+    "C:\\Users\\fredd\\.nuget\\packages\\mysqlconnector\\2.5.0\\mysqlconnector.2.5.0.nupkg.sha512"
+  ],
+  "logs": []
+}

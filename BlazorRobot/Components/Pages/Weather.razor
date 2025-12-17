@@ -1,0 +1,50 @@
+﻿@page "/weather"
+@inject HttpClient Http
+
+<h3>Mine Map</h3>
+<button @onclick="Reload">Reload</button>
+
+<svg width="700" height="700" style="border:1px solid #ccc;">
+    <!-- akser -->
+    <line x1="50" y1="650" x2="650" y2="650" stroke="black" />
+    <line x1="50" y1="650" x2="50"  y2="50"  stroke="black" />
+
+    <!-- punkter -->
+    @foreach (var p in Points)
+    {
+        var (sx, sy) = ToScreen(p.x_coordinate, p.y_coordinate);
+        <circle cx="@sx" cy="@sy" r="5" fill="red" opacity="0.7">
+            <title>ID=@p.id | x=@p.x_coordinate y=@p.y_coordinate | mq135=@p.mq_135 | mq4=@p.mq_4</title>
+        </circle>
+    }
+</svg>
+
+@code {
+    private List<MineDataRow> Points = new();
+
+    // tilpas jeres grid (ændr hvis I bruger andre koordinater)
+    private int minX = 0, maxX = 20;
+    private int minY = 0, maxY = 20;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        Points = await Http.GetFromJsonAsync<List<MineDataRow>>("/api/mine-data/latest?limit=300")
+                 ?? new();
+    }
+
+    private (double sx, double sy) ToScreen(int x, int y)
+    {
+        double left = 50, right = 650, bottom = 650, top = 50;
+
+        double nx = (x - minX) / (double)(maxX - minX);
+        double ny = (y - minY) / (double)(maxY - minY);
+
+        double sx = left + nx * (right - left);
+        double sy = bottom - ny * (bottom - top); // y opad
+        return (sx, sy);
+    }
+
+    public record MineDataRow(int id, float mq_135, float mq_4, int x_coordinate, int y_coordinate);
+}

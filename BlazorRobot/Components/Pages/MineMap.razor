@@ -1,0 +1,219 @@
+@page "/"
+
+@using System.Text.Json.Serialization
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<h2 style="margin-bottom:12px;">Mine Map</h2>
+
+<div style="display:flex; gap:24px;">
+    <!-- Venstre: Map -->
+    <div style="width:560px;">
+        <div style="margin-bottom:10px;">
+            <button class="btn-pretty" @onclick="Reload">
+                Reload
+            </button>
+            <span style="margin-left:10px;">Points: <b>@Points.Count</b></span>
+        </div>
+
+        @if (ReadyToRender)
+        {
+            <svg width="560" height="560" style="border:1px solid #ddd; background:white;">
+    <!-- Akser -->
+    <line x1="@Left.ToString(Culture)" 
+        y1="@Bottom.ToString(Culture)" 
+        x2="@Right.ToString(Culture)" 
+        y2="@Bottom.ToString(Culture)" 
+        stroke="black" />
+
+    <line x1="@Left.ToString(Culture)" 
+        y1="@Bottom.ToString(Culture)" 
+        x2="@Left.ToString(Culture)" 
+        y2="@Top.ToString(Culture)" 
+        stroke="black" />
+
+    <!-- Akse labels -->
+    <text x="@MidX.ToString(Culture)" y="550" font-size="12" text-anchor="middle">X axis</text>
+    <text x="18" y="@MidY.ToString(Culture)" transform="rotate(-90 18 @MidY)" font-size="12" text-anchor="middle">Y axis</text>
+
+
+
+    <!-- X takker -->
+@for (int i = MinX; i <= MaxX; i++)
+{
+    double t = (i - MinX) / (double)(MaxX - MinX);
+    double xRaw = Left + t * (Right - Left);
+    string x = xRaw.ToString(Culture);
+    string yLine = Bottom.ToString(Culture);
+    string yText = (Bottom + 12).ToString(Culture);
+    //Gitterlinjer
+    <line x1="@x" y1="@Top" x2="@x" y2="@Bottom" stroke="#eee" />
+
+    //Linjer på akserne
+    <line x1="@x" y1="@yLine" x2="@x" y2="@(Bottom + 5)" stroke="black" />
+
+    //Tal på akserne
+    @(new MarkupString($"<text x='{x}' y='{yText}' font-size='10' text-anchor='middle'>{i}</text>"))
+}
+
+
+<!-- Y takker -->
+@for (int i = MinY; i <= MaxY; i++)
+{
+    double t = (i - MinY) / (double)(MaxY - MinY);
+    double yRaw = Bottom - t * (Bottom - Top);
+    string y = yRaw.ToString(Culture);
+    string xLine = (Left - 5).ToString(Culture);
+    string xText = (Left - 8).ToString(Culture);
+    string yText = (yRaw + 4).ToString(Culture);
+    //Gitterlinjer
+    <line x1="@Left" y1="@y" x2="@Right" y2="@y" stroke="#eee" />
+
+    //Linjer på akserne
+    <line x1="@xLine" y1="@y" x2="@Left" y2="@y" stroke="black" />
+
+    //tal på akserne
+    @(new MarkupString($"<text x='{xText}' y='{yText}' font-size='10' text-anchor='end'>{i}</text>"))
+}
+
+    <!-- Punkter -->
+    @foreach (var p in Points)
+    {
+        var (sx, sy) = ToScreen(p.x_coordinate, p.y_coordinate);
+
+        string color = p.mq_135 switch
+        {
+            >= 340 => "red",
+            >= 335 => "orange",
+            _ => "green"
+        };
+
+        <circle 
+            cx="@sx.ToString(Culture)" 
+            cy="@sy.ToString(Culture)" 
+            r="6" 
+            fill="@color" 
+            opacity="0.8" 
+            stroke="black" />
+    }
+</svg>
+
+
+            <!-- Legend -->
+            <div style="margin-top:10px;">
+                <span style="color:green; font-weight:bold;">●</span> MQ-135 &lt; 335
+                &nbsp;&nbsp;
+                <span style="color:orange; font-weight:bold;">●</span> 335–339
+                &nbsp;&nbsp;
+                <span style="color:red; font-weight:bold;">●</span> ≥ 340
+            </div>
+        }
+        else
+        {
+            <p>Loading map...</p>
+        }
+    </div>
+
+    <!-- Tabel -->
+    <div style="flex:1;">
+        <h4>Measured points</h4>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>X</th>
+                    <th>Y</th>
+                    <th>MQ-135</th>
+                    <th>MQ-4</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Points)
+                {
+                    <tr>
+                        <td>@p.id</td>
+                        <td>@p.x_coordinate</td>
+                        <td>@p.y_coordinate</td>
+                        <td>@p.mq_135</td>
+                        <td>@p.mq_4</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.InvariantCulture;
+
+    private const double Left = 70;
+    private const double Right = 540;
+    private const double Top = 30;
+    private const double Bottom = 520;
+
+    private double MidX => (Left + Right) / 2;
+    private double MidY => (Top + Bottom) / 2;
+
+    private List<MineDataRow> Points = new();
+
+    //Default fallback bliver kun brugt indtil data er hentet
+    private int MinX = 0, MaxX = 11;
+    private int MinY = 0, MaxY = 11;
+    private bool ReadyToRender = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        ReadyToRender = false;
+
+        var url = Nav.ToAbsoluteUri("/api/mine-data/latest?limit=300").ToString();
+        Points = await Http.GetFromJsonAsync<List<MineDataRow>>(url) ?? new();
+
+        if (Points.Count > 0)
+        {
+            MinX = Points.Min(p => p.x_coordinate) - 1;
+            MaxX = Points.Max(p => p.x_coordinate) + 1;
+            MinY = Points.Min(p => p.y_coordinate) - 1;
+            MaxY = Points.Max(p => p.y_coordinate) + 1;
+        }
+
+        if (MinX == MaxX) MaxX++;
+        if (MinY == MaxY) MaxY++;
+
+        ReadyToRender = true;
+        StateHasChanged();
+    }
+
+    private (double, double) ToScreen(int x, int y)
+    {
+        double dx = MaxX - MinX;
+        double dy = MaxY - MinY;
+
+        //if (dx == 0) dx = 1;
+        //if (dy == 0) dy = 1;
+
+        double nx = (x - MinX) / dx;
+        double ny = (y - MinY) / dy;
+
+        //const double padding = 0.1;
+        double sx = Left + nx * (Right - Left);
+        double sy = Bottom - ny * (Bottom - Top);
+
+        //Debug om der blirve udkskrebet koordinaterne
+        //Console.WriteLine($"ToScreen({x},{y}) => ({sx}, {sy})");
+
+        return (sx, sy);
+    }
+
+    public record MineDataRow(
+        [property: JsonPropertyName("id")] int id,
+        [property: JsonPropertyName("mq_135")] float mq_135,
+        [property: JsonPropertyName("mq_4")] float mq_4,
+        [property: JsonPropertyName("x_coordinate")] int x_coordinate,
+        [property: JsonPropertyName("y_coordinate")] int y_coordinate
+    );
+}
