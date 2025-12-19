@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "1aObdEuwXqY=",
+  "dgSpecHash": "w9aUHYea+pU=",
   "success": true,
-  "projectFilePath": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\BlazorRobot\\BlazorRobot.csproj",
+  "projectFilePath": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\P3-SensorRobot\\BlazorRobot\\BlazorRobot.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\fredd\\.nuget\\packages\\dapper\\2.1.66\\dapper.2.1.66.nupkg.sha512",
     "C:\\Users\\fredd\\.nuget\\packages\\microsoft.extensions.dependencyinjection.abstractions\\8.0.2\\microsoft.extensions.dependencyinjection.abstractions.8.0.2.nupkg.sha512",

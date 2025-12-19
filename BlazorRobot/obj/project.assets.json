@@ -238,11 +238,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\BlazorRobot\\BlazorRobot.csproj",
+      "projectUniqueName": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\P3-SensorRobot\\BlazorRobot\\BlazorRobot.csproj",
       "projectName": "BlazorRobot",
-      "projectPath": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\BlazorRobot\\BlazorRobot.csproj",
+      "projectPath": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\P3-SensorRobot\\BlazorRobot\\BlazorRobot.csproj",
       "packagesPath": "C:\\Users\\fredd\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\BlazorRobot\\obj\\",
+      "outputPath": "C:\\Users\\fredd\\OneDrive\\Dokumenter\\GitHub\\P3-SensorRobot\\BlazorRobot\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\fredd\\AppData\\Roaming\\NuGet\\NuGet.Config"

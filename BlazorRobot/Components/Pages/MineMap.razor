@@ -36,76 +36,89 @@
     <text x="@MidX.ToString(Culture)" y="550" font-size="12" text-anchor="middle">X axis</text>
     <text x="18" y="@MidY.ToString(Culture)" transform="rotate(-90 18 @MidY)" font-size="12" text-anchor="middle">Y axis</text>
 
-
-
     <!-- X takker -->
-@for (int i = MinX; i <= MaxX; i++)
-{
-    double t = (i - MinX) / (double)(MaxX - MinX);
-    double xRaw = Left + t * (Right - Left);
-    string x = xRaw.ToString(Culture);
-    string yLine = Bottom.ToString(Culture);
-    string yText = (Bottom + 12).ToString(Culture);
-    //Gitterlinjer
-    <line x1="@x" y1="@Top" x2="@x" y2="@Bottom" stroke="#eee" />
+    @for (int i = MinX; i <= MaxX; i++)
+    {
+        double t = (i - MinX) / (double)(MaxX - MinX);  // Normaliseret position mellem MinX og MaxX
+        double xRaw = Left + t * (Right - Left);        // Skærmkoordinat for x, altså fra logisk til svg
+        string x = xRaw.ToString(Culture);              //Konvertering til tekst
+        string yLine = Bottom.ToString(Culture);        //Hvor tick-linje starter
+        string yText = (Bottom + 12).ToString(Culture); //Tekst placering
+        //Gitterlinjer
+        <line x1="@x" y1="@Top" x2="@x" y2="@Bottom" stroke="#eee" />
 
-    //Linjer på akserne
-    <line x1="@x" y1="@yLine" x2="@x" y2="@(Bottom + 5)" stroke="black" />
+        //Linjer på akserne
+        <line x1="@x" y1="@yLine" x2="@x" y2="@(Bottom + 5)" stroke="black" />
 
-    //Tal på akserne
-    @(new MarkupString($"<text x='{x}' y='{yText}' font-size='10' text-anchor='middle'>{i}</text>"))
-}
+        //Tal på akserne
+        @(new MarkupString($"<text x='{x}' y='{yText}' font-size='10' text-anchor='middle'>{i}</text>"))
+    }
 
 
-<!-- Y takker -->
-@for (int i = MinY; i <= MaxY; i++)
-{
-    double t = (i - MinY) / (double)(MaxY - MinY);
-    double yRaw = Bottom - t * (Bottom - Top);
-    string y = yRaw.ToString(Culture);
-    string xLine = (Left - 5).ToString(Culture);
-    string xText = (Left - 8).ToString(Culture);
-    string yText = (yRaw + 4).ToString(Culture);
-    //Gitterlinjer
-    <line x1="@Left" y1="@y" x2="@Right" y2="@y" stroke="#eee" />
+    <!-- Y takker -->
+    @for (int i = MinY; i <= MaxY; i++)
+    {
+        double t = (i - MinY) / (double)(MaxY - MinY);
+        double yRaw = Bottom - t * (Bottom - Top);
+        string y = yRaw.ToString(Culture);
+        string xLine = (Left - 5).ToString(Culture);
+        string xText = (Left - 8).ToString(Culture);
+        string yText = (yRaw + 4).ToString(Culture);
+        //Gitterlinjer
+        <line x1="@Left" y1="@y" x2="@Right" y2="@y" stroke="#eee" />
 
-    //Linjer på akserne
-    <line x1="@xLine" y1="@y" x2="@Left" y2="@y" stroke="black" />
+        //Linjer på akserne
+        <line x1="@xLine" y1="@y" x2="@Left" y2="@y" stroke="black" />
 
-    //tal på akserne
-    @(new MarkupString($"<text x='{xText}' y='{yText}' font-size='10' text-anchor='end'>{i}</text>"))
-}
+        //tal på akserne
+        @(new MarkupString($"<text x='{xText}' y='{yText}' font-size='10' text-anchor='end'>{i}</text>"))
+    }
 
     <!-- Punkter -->
     @foreach (var p in Points)
     {
+        double ppm135 = MQ135_ToPPM(p.mq_135);
+        double ppm4 = MQ4_ToPPM(p.mq_4);
+
         var (sx, sy) = ToScreen(p.x_coordinate, p.y_coordinate);
 
-        string color = p.mq_135 switch
+        /*string color = p.mq_135 switch
         {
-            >= 340 => "red",
-            >= 335 => "orange",
+            >= 350 => "red",
+            >= 200 => "orange",
             _ => "green"
-        };
+        };*/
+
+        //var fill = ColorFrom135((int)p.mq_135);
+        //var stroke = ColorFrom4((int)p.mq_4);
 
         <circle 
             cx="@sx.ToString(Culture)" 
             cy="@sy.ToString(Culture)" 
-            r="6" 
-            fill="@color" 
-            opacity="0.8" 
-            stroke="black" />
+            r="8" 
+            fill="@ColorFrom135(ppm135)" 
+            opacity="0.9" 
+            stroke="@ColorFrom4(ppm4)"
+            stroke-width="4" />
+            <title> ID=@p.id | MQ-135=@p.mq_135.ToString("0") ppm | MQ-4=@p.mq_4.ToString("0") ppm </title>
     }
 </svg>
 
 
-            <!-- Legend -->
+            <!-- Legende -->
             <div style="margin-top:10px;">
-                <span style="color:green; font-weight:bold;">●</span> MQ-135 &lt; 335
+                <span style="color:green; font-weight:bold;">●</span> MQ-135 &lt; 400
                 &nbsp;&nbsp;
-                <span style="color:orange; font-weight:bold;">●</span> 335–339
+                <span style="color:orange; font-weight:bold;">●</span> 400–1000
                 &nbsp;&nbsp;
-                <span style="color:red; font-weight:bold;">●</span> ≥ 340
+                <span style="color:red; font-weight:bold;">●</span> &gt; 1000 
+            </div>
+            <div style="margin-top:4px;">
+                <span style="color:green; font-weight:bold;">●</span> MQ-4 &lt; 1000
+                &nbsp;&nbsp;
+                <span style="color:orange; font-weight:bold;">●</span> 1000–5000
+                &nbsp;&nbsp;
+                <span style="color:red; font-weight:bold;">●</span> &gt; 5000
             </div>
         }
         else
@@ -125,6 +138,7 @@
                     <th>Y</th>
                     <th>MQ-135</th>
                     <th>MQ-4</th>
+                    <!--<th>Air Quality</th>-->
                 </tr>
             </thead>
             <tbody>
@@ -134,8 +148,9 @@
                         <td>@p.id</td>
                         <td>@p.x_coordinate</td>
                         <td>@p.y_coordinate</td>
-                        <td>@p.mq_135</td>
-                        <td>@p.mq_4</td>
+                        <td>@MQ135_ToPPM(p.mq_135).ToString("0") ppm</td>
+                        <td>@MQ4_ToPPM(p.mq_4).ToString("0") ppm</td>
+                        <!-- <td>AQFromADC((int)p.mq_135)</td> -->
                     </tr>
                 }
             </tbody>
@@ -154,6 +169,10 @@
     private double MidX => (Left + Right) / 2;
     private double MidY => (Top + Bottom) / 2;
 
+    private const double MQ4_Factor = 9.579664;
+
+    private const double MQ135_factor = 0.96774;
+
     private List<MineDataRow> Points = new();
 
     //Default fallback bliver kun brugt indtil data er hentet
@@ -164,6 +183,16 @@
     protected override async Task OnInitializedAsync()
     {
         await Reload();
+    }
+
+    private static double MQ4_ToPPM(double adc)
+    {
+        return MQ4_Factor * adc;
+    }
+
+    private static double MQ135_ToPPM(double adc)
+    {
+        return MQ135_factor * adc;
     }
 
     private async Task Reload()
@@ -188,18 +217,40 @@
         StateHasChanged();
     }
 
+    /*private static string AQFromADC(int adc){
+
+        if (adc < 200) return "Good";
+        if (adc < 350) return "Moderate";
+        if (adc < 450) return "Unhealthy";
+        return "Hazardous";
+    }*/
+
+    private static string ColorFrom135(double ppm){
+        if (ppm < 400) return "green";
+        if (ppm < 1000) return "orange";
+        return "red";
+    }    
+
+    private static string ColorFrom4(double ppm){
+        if (ppm < 1000) return "green";
+        if (ppm < 5000) return "orange";
+        return "red";
+    }    
+
     private (double, double) ToScreen(int x, int y)
     {
+        //Dataområde størrelse
         double dx = MaxX - MinX;
         double dy = MaxY - MinY;
 
         //if (dx == 0) dx = 1;
         //if (dy == 0) dy = 1;
 
+        //Normaliserede koordinater mellem 0..1
         double nx = (x - MinX) / dx;
         double ny = (y - MinY) / dy;
 
-        //const double padding = 0.1;
+        //Udregning af skærmkoordinater
         double sx = Left + nx * (Right - Left);
         double sy = Bottom - ny * (Bottom - Top);
 
@@ -211,9 +262,11 @@
 
     public record MineDataRow(
         [property: JsonPropertyName("id")] int id,
-        [property: JsonPropertyName("mq_135")] float mq_135,
+        [property: JsonPropertyName("mq_135")] float mq_135 ,
         [property: JsonPropertyName("mq_4")] float mq_4,
         [property: JsonPropertyName("x_coordinate")] int x_coordinate,
         [property: JsonPropertyName("y_coordinate")] int y_coordinate
     );
+
+
 }
