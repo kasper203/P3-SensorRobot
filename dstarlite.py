@@ -27,15 +27,14 @@ class Grid:
         self.width = width
         self.height = height
         self.nodes: List[List[Cell]] = []
-        self.U: List[Tuple[Tuple[float,float], int, Cell]] = []  # heap
+        self.U: List[Tuple[Tuple[float,float], int, Cell]] = [] 
         self.km = 0
         self.startnode: Cell = None
         self.endnode: Cell = None
 
-        self.counter = itertools.count()  # tie-breaker for heap
+        self.counter = itertools.count()  
 
 
-    # -------------------- Basic grid setup --------------------
     def createAllNodes(self):
         self.nodes = []
         for y in range(self.height):
@@ -58,7 +57,6 @@ class Grid:
         self.endnode.is_endnode = True
         return self.endnode
 
-    # -------------------- D* Lite core --------------------
     def CalcKey(self, node: Cell) -> Tuple[float, float]:
         h = self.calcHeuristic(node, self.startnode)
         return (min(node.gvalue, node.rhs) + h + self.km, min(node.gvalue, node.rhs))
@@ -80,11 +78,11 @@ class Grid:
     def computeShortestPath(self):
         while self.U:
             start_key = self.CalcKey(self.startnode)
-            top_key, _, _,= self.U[0]  # unpack counter
+            top_key, _, _,= self.U[0]  
 
             if not (top_key < start_key or self.startnode.rhs != self.startnode.gvalue):
                 break
-            # pop the top node
+            
             k_old, _, u = heapq.heappop(self.U)
             k_new = self.CalcKey(u)
 
@@ -102,7 +100,6 @@ class Grid:
                 for succ in self.getSuccessors(u):
                     self.updateVertex(succ)
 
-    # -------------------- Successors / Predecessors --------------------
     def getSuccessors(self, node: Cell) -> List[Cell]:
         successors = []
         directions = [(-1,0), (-1,1), (1,0), (1,1), (0,1), (1,-1), (0,-1), (-1,-1)]
@@ -116,7 +113,6 @@ class Grid:
     def getPredecessors(self, node: Cell) -> List[Cell]:
         return self.getSuccessors(node)
 
-    # -------------------- Heuristic & Cost --------------------
     def calcHeuristic(self, node1: Cell, node2: Cell) -> float:
         dx = abs(node1.x - node2.x)
         dy = abs(node1.y - node2.y)
@@ -127,7 +123,6 @@ class Grid:
             return float('inf')
         return sqrt(2) if (node1.x != node2.x and node1.y != node2.y) else 1
 
-    # -------------------- Priority Queue --------------------
     def removeFromQueue(self, node: Cell) -> bool:
         for i, (_, _, cell) in enumerate(self.U):
             if cell == node:
@@ -145,9 +140,8 @@ class Grid:
             node.parent = None
 
 
-# -------------------- Path reconstruction --------------------
-    def reconstruct_path(self, start_node: Cell, goal_node: Cell) -> List[Tuple[int, int]]: #| None: | None, is not supported by 3.9 and earlier, which is what the robot runs, so we just delte it. Its just hints anyway.
-        path = [(start_node.x, start_node.y)] # Start the path with the start node's coordinates
+    def reconstruct_path(self, start_node: Cell, goal_node: Cell) -> List[Tuple[int, int]]:
+        path = [(start_node.x, start_node.y)] 
         current = start_node
         visited = {start_node}
 
@@ -190,20 +184,16 @@ class Grid:
                 angle_relative += 360
             dist = sqrt(dx*dx + dy*dy)
 
-            # If a rotation is required, do rotation (distance 0) first then movement.
             if abs(angle_relative) > 1e-9:
                 moves.append((angle_relative, 0.0))
                 moves.append((0, dist))
             else:
                 moves.append((0, dist))
 
-            # Update heading to the absolute direction after the step
             heading = angle_abs
 
         return moves   
 
-    # -------------------- Dynamic obstacle --------------------
-    # Only mark the wall itself
     def addWall(self, wall):
         changed_nodes = set()
         cell = self.nodes[wall.y1][wall.x1]
@@ -222,16 +212,13 @@ class DStarLiteController:
         self.grid = Grid(width, height)
         self.grid.createAllNodes()
 
-        # Set start/end
         self.current_node = self.grid.setStartNode(*start)
         self.grid.setEndNode(*goal)
         self.goal_node = self.grid.endnode
 
-        # Robot state
         self.last_node = self.current_node
         self.robot_heading = 0
 
-        # Initialize D* Lite
         self.grid.U = []
         self.grid.km = 0
 
@@ -241,11 +228,9 @@ class DStarLiteController:
                 node.gvalue = float('inf')
                 node.parent = None
 
-        # End node rhs = 0
         self.goal_node.rhs = 0
         heapq.heappush(self.grid.U, (self.grid.CalcKey(self.goal_node), next(self.grid.counter), self.goal_node))
 
-        # Compute initial path
         self.grid.computeShortestPath()
 
     def get_initial_commands(self):
@@ -271,7 +256,7 @@ class DStarLiteController:
             self.grid.updateVertex(v)
             for succ in self.grid.getPredecessors(v):
                 self.grid.updateVertex(succ)
-                if succ.parent == v: # Gotta make sure that if a neighbor has a wall node as parent, we clear it
+                if succ.parent == v:
                     self.grid.updateParent(succ)
 
         self.grid.computeShortestPath()

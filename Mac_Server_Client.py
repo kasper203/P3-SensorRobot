@@ -3,8 +3,6 @@ import json
 import mysql.connector
 from mysql.connector import Error
 
-
-#MySQL Configuration
 DB_CONFIG = {
     "host": "localhost",
     "user": "root",          
@@ -13,11 +11,9 @@ DB_CONFIG = {
     "port": 3306
 }
 
-#UDP Configuration
 UDP_IP = "0.0.0.0" 
 UDP_PORT = 9999
 
-#Database Connection
 def get_db_connection():
     try:
         return mysql.connector.connect(**DB_CONFIG)
@@ -25,7 +21,6 @@ def get_db_connection():
         print("MySQL connection error:", e)
         return None
 
-#Clear Table on Startup
 def clear_table_on_start():
     conn = get_db_connection()
     if conn is None:
@@ -41,7 +36,6 @@ def clear_table_on_start():
     except Error as e:
         print("Error truncating table", e)
 
-#Insert Data into DB
 def insert_data(mq135, mq4, x, y):
     conn = get_db_connection()
     if conn is None:
@@ -61,7 +55,6 @@ def insert_data(mq135, mq4, x, y):
     except Error as e:
         print("DB insert error:", e)
 
-#UDP Server
 def start_udp_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((UDP_IP, UDP_PORT))
@@ -91,7 +84,6 @@ def start_udp_server():
         except Exception as e:
             print("Error:", e)
 
-#Main
 if __name__ == "__main__":
     clear_table_on_start()
     start_udp_server()

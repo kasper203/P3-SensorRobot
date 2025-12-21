@@ -3,16 +3,11 @@ import cv2
 import numpy as np
 from jetbot import Camera
 
-
-# ==========================
-# Vision Parameters
-# ==========================
 PIXEL_DIFF_PIXEL_THRESHOLD = 10.0
 FRACTION_CLOSE_THRESHOLD = 0.85
 MIN_FRAC_FOR_DISTANCE = 0.05
 K_FRAC = 6.0
 
-# ROI Shape
 ROI_Y_START_FRAC = 0.60
 ROI_Y_END_FRAC = 0.85
 ROI_X_TOP_START_FRAC = 0.40
@@ -20,10 +15,6 @@ ROI_X_TOP_END_FRAC = 0.60
 ROI_X_BOTTOM_START_FRAC = 0.25
 ROI_X_BOTTOM_END_FRAC = 0.75
 
-
-# ==========================
-# Helper: Create trapezoid mask
-# ==========================
 def create_trapezoid_mask(width, height):
     """Return a white-on-black mask for trapezoid ROI."""
     y1 = int(height * ROI_Y_START_FRAC)
@@ -45,26 +36,17 @@ def create_trapezoid_mask(width, height):
     cv2.fillPoly(mask, [pts], 255)
     return mask
 
-
-# ==========================
-# Vision System Class
-# ==========================
 class VisionSystem:
     def __init__(self, width=224, height=224):
         self.camera = Camera.instance(width=width, height=height)
         self.width = width
         self.height = height
 
-        # Precompute trapezoid mask
         self.mask = create_trapezoid_mask(width, height)
         self.roi_pixel_count = np.count_nonzero(self.mask)
 
-        # Background will be set during calibration
         self.bg_gray = None
 
-    # -----------------------------------
-    # Calibration
-    # -----------------------------------
     def calibrate(self, frames=25):
         print("--- Vision Calibration Started ---")
         print("Ensure NOTHING is inside the trapezoid ROI...")
@@ -82,9 +64,6 @@ class VisionSystem:
         self.bg_gray = np.mean(collected, axis=0)
         print("Calibration complete.")
 
-    # -----------------------------------
-    # Obstacle Detection
-    # -----------------------------------
     def detect_close_obstacle(self):
         """Returns: obstacle_close (bool), frac, distance_cm or None, frame"""
         if self.bg_gray is None:
@@ -111,9 +90,6 @@ class VisionSystem:
 
         return obstacle_close, frac, distance_cm, frame
 
-    # -----------------------------------
-    # Shutdown
-    # -----------------------------------
     def stop(self):
         """Safely stop camera."""
         self.camera.stop()

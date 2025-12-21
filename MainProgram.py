@@ -1,4 +1,3 @@
-# --- Celle 1: Opsætning og Imports ---
 %load_ext autoreload
 %autoreload 2
 
@@ -12,36 +11,29 @@ from dstarlite import DStarLiteController, Wall
 from OD import VisionSystem
 
 
-# --- Arduino UDP Setup ---
 ARDUINO_IP = "172.20.10.14"
 ARDUINO_PORT = 8888
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-# --- Grid Constants ---
 GRID_W, GRID_H = 20, 20
 start = (0, 0)
 goal = (5, 5)
 
-# Threshold for img recon used in main loop
 REPLAN_FRAC_THRESHOLD = 0.99
 
-# --- Init Hardware ---
 robot = OurRobot.robot
 
-# NEW: Initialize the vision system
 vision = VisionSystem()
-vision.calibrate()  # replaces all old calibration code
+vision.calibrate()  
 
 
-back_commands = [] # list for logging executed commands
+back_commands = [] 
 
 def send_coordinates(x, y):
     message = f"{x},{y}"
     sock.sendto(message.encode(), (ARDUINO_IP, ARDUINO_PORT))
     print(f"Sent to Arduino: {message}")
 
-
-# --- Grid + Movement Helpers ---
 def cell_step_for_heading(heading_deg):
     heading_deg = heading_deg % 360
     if heading_deg > 180:
@@ -78,13 +70,11 @@ def execute_command(angle_deg, dist_cells):
     if not returning_home:
         back_commands.append((angle_deg, dist_cells))
 
-    # Turn
     if angle_deg < 0:
         OurRobot.turn_left(OurRobot.robot, angle_deg)
     elif angle_deg > 0:
         OurRobot.turn_right(OurRobot.robot, angle_deg)
 
-    # Drive forward
     if dist_cells == 1:
         duration = dist_cells * 2.2
         OurRobot.drive_forward(OurRobot.robot, duration)
@@ -92,14 +82,12 @@ def execute_command(angle_deg, dist_cells):
         duration = dist_cells * 2.38
         OurRobot.drive_forward(OurRobot.robot, duration)
 
-    # Update heading
     robot_heading += angle_deg
     robot_heading %= 360
 
     if robot_heading > 180: robot_heading -= 360
     if robot_heading < -180: robot_heading += 360
 
-    # Update grid cell
     if dist_cells > 0:
         dx, dy = cell_step_for_heading(robot_heading)
         grid_x += dx
@@ -109,8 +97,6 @@ def execute_command(angle_deg, dist_cells):
     controller.update_robot_position((grid_x, grid_y), robot_heading)
     print(f"Ny grid-position: ({grid_x}, {grid_y}), heading={robot_heading}")
 
-
-# --- Init D* Lite ---
 controller = DStarLiteController(width=GRID_W, height=GRID_H, start=start, goal=goal)
 
 grid_x, grid_y = start
@@ -123,13 +109,9 @@ returning_home = False
 print("D* Lite initialiseret. Starter rute fra:", start, "til:", goal)
 
 
-# --- MAIN LOOP ---
 try:
     while True:
 
-        # ---------------------------------------
-        # Goal reached → Return home
-        # ---------------------------------------
         if (grid_x, grid_y) == goal and not returning_home:
             print("Mål nået!")
             print(back_commands)
@@ -143,25 +125,16 @@ try:
             returning_home = True
             print("Returning to base!")
 
-        # ---------------------------------------
-        # Execute next command
-        # ---------------------------------------
         if command_queue:
             angle, dist = command_queue.pop(0)
 
             print(f"\nCOMMAND: Drej {angle}°, Kør {dist} celle(r)")
             execute_command(angle, dist)
 
-            # ---------------------------------------
-            # VISION CALL — moved to vision.py
-            # ---------------------------------------
             obstacle_close, frac, dist_cm, frame = vision.detect_close_obstacle()
 
             print(f"Vision: close={obstacle_close}, frac={frac:.4f}")
 
-            # ---------------------------------------
-            # Obstacle detection → Replan
-            # ---------------------------------------
             if frac > REPLAN_FRAC_THRESHOLD:
                 print(">>> TÆT PÅ FORHINDRING! Starter D* replanlægning. <<<")
 
@@ -190,5 +163,5 @@ except KeyboardInterrupt:
 
 finally:
     robot.stop()
-    vision.stop()   # NEW: safely stop camera
+    vision.stop() 
     print("Robot og Kamera stoppet.")
