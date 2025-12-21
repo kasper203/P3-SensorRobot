@@ -1,0 +1,194 @@
+# --- Celle 1: Opsætning og Imports ---
+%load_ext autoreload
+%autoreload 2
+
+import time
+import socket
+import cv2
+import numpy as np
+from jetbot import Robot, Camera
+import OurRobot
+from dstarlite import DStarLiteController, Wall
+from OD import VisionSystem
+
+
+# --- Arduino UDP Setup ---
+ARDUINO_IP = "172.20.10.14"
+ARDUINO_PORT = 8888
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# --- Grid Constants ---
+GRID_W, GRID_H = 20, 20
+start = (0, 0)
+goal = (5, 5)
+
+# Threshold for img recon used in main loop
+REPLAN_FRAC_THRESHOLD = 0.99
+
+# --- Init Hardware ---
+robot = OurRobot.robot
+
+# NEW: Initialize the vision system
+vision = VisionSystem()
+vision.calibrate()  # replaces all old calibration code
+
+
+back_commands = [] # list for logging executed commands
+
+def send_coordinates(x, y):
+    message = f"{x},{y}"
+    sock.sendto(message.encode(), (ARDUINO_IP, ARDUINO_PORT))
+    print(f"Sent to Arduino: {message}")
+
+
+# --- Grid + Movement Helpers ---
+def cell_step_for_heading(heading_deg):
+    heading_deg = heading_deg % 360
+    if heading_deg > 180:
+        heading_deg -= 360
+
+    if heading_deg == 0: return (0, 1)
+    elif heading_deg == 45: return (1, 1)
+    elif heading_deg == 90: return (1, 0)
+    elif heading_deg == 135: return (1, -1)
+    elif heading_deg == 180 or heading_deg == -180: return (0, -1)
+    elif heading_deg == -135: return (-1, -1)
+    elif heading_deg == -90: return (-1, 0)
+    elif heading_deg == -45: return (-1, 1)
+    else: return (0, 0)
+
+def cell_in_front(grid_x, grid_y, robot_heading):
+    dx, dy = cell_step_for_heading(robot_heading)
+    return grid_x + dx, grid_y + dy
+
+def reverseCommand(commands):
+    reversed_commands = []
+    for angle, dist in reversed(commands):
+        if dist != 0:
+            reversed_commands.append((0, dist))
+        if angle != 0:
+            reversed_commands.append((-angle, 0))
+    return reversed_commands
+
+
+def execute_command(angle_deg, dist_cells):
+    global robot_heading, grid_x, grid_y
+    global back_commands, returning_home
+
+    if not returning_home:
+        back_commands.append((angle_deg, dist_cells))
+
+    # Turn
+    if angle_deg < 0:
+        OurRobot.turn_left(OurRobot.robot, angle_deg)
+    elif angle_deg > 0:
+        OurRobot.turn_right(OurRobot.robot, angle_deg)
+
+    # Drive forward
+    if dist_cells == 1:
+        duration = dist_cells * 2.2
+        OurRobot.drive_forward(OurRobot.robot, duration)
+    else:
+        duration = dist_cells * 2.38
+        OurRobot.drive_forward(OurRobot.robot, duration)
+
+    # Update heading
+    robot_heading += angle_deg
+    robot_heading %= 360
+
+    if robot_heading > 180: robot_heading -= 360
+    if robot_heading < -180: robot_heading += 360
+
+    # Update grid cell
+    if dist_cells > 0:
+        dx, dy = cell_step_for_heading(robot_heading)
+        grid_x += dx
+        grid_y += dy
+        send_coordinates(grid_x, grid_y)
+
+    controller.update_robot_position((grid_x, grid_y), robot_heading)
+    print(f"Ny grid-position: ({grid_x}, {grid_y}), heading={robot_heading}")
+
+
+# --- Init D* Lite ---
+controller = DStarLiteController(width=GRID_W, height=GRID_H, start=start, goal=goal)
+
+grid_x, grid_y = start
+robot_heading = 0
+
+command_queue = controller.get_initial_commands()
+
+returning_home = False
+
+print("D* Lite initialiseret. Starter rute fra:", start, "til:", goal)
+
+
+# --- MAIN LOOP ---
+try:
+    while True:
+
+        # ---------------------------------------
+        # Goal reached → Return home
+        # ---------------------------------------
+        if (grid_x, grid_y) == goal and not returning_home:
+            print("Mål nået!")
+            print(back_commands)
+
+            command_queue = reverseCommand(back_commands)
+            print(command_queue)
+
+            OurRobot.turn_right(OurRobot.robot, 180)
+            robot_heading += 180
+
+            returning_home = True
+            print("Returning to base!")
+
+        # ---------------------------------------
+        # Execute next command
+        # ---------------------------------------
+        if command_queue:
+            angle, dist = command_queue.pop(0)
+
+            print(f"\nCOMMAND: Drej {angle}°, Kør {dist} celle(r)")
+            execute_command(angle, dist)
+
+            # ---------------------------------------
+            # VISION CALL — moved to vision.py
+            # ---------------------------------------
+            obstacle_close, frac, dist_cm, frame = vision.detect_close_obstacle()
+
+            print(f"Vision: close={obstacle_close}, frac={frac:.4f}")
+
+            # ---------------------------------------
+            # Obstacle detection → Replan
+            # ---------------------------------------
+            if frac > REPLAN_FRAC_THRESHOLD:
+                print(">>> TÆT PÅ FORHINDRING! Starter D* replanlægning. <<<")
+
+                fx, fy = cell_in_front(grid_x, grid_y, robot_heading)
+                wall = Wall(fx, fy, fx, fy)
+
+                new_commands = controller.handle_obstacle(wall)
+
+                if new_commands:
+                    command_queue = new_commands
+                else:
+                    print("D* fandt ingen rute – venter.")
+
+        else:
+            if returning_home:
+                print("Tilbage ved start – færdig.")
+                break
+            else:
+                print("Ingen flere kommandoer – venter.")
+                time.sleep(0.5)
+
+        time.sleep(0.5)
+
+except KeyboardInterrupt:
+    pass
+
+finally:
+    robot.stop()
+    vision.stop()   # NEW: safely stop camera
+    print("Robot og Kamera stoppet.")
