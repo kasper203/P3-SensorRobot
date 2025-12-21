@@ -1,9 +1,10 @@
-# main_dstar_vision.ipynb
+## main_dstar_vision.ipynb
 
 # --- Celle 1: Opsætning og Imports ---
 %load_ext autoreload
 %autoreload 2
 
+import time
 import socket
 import time
 import cv2 # Nødvendigt for billedbehandling
@@ -29,14 +30,14 @@ def send_coordinates(x, y):
     print(f"Sent to Arduino: {message}")
 
 # --- 2. KONSTANTER & THRESHOLDS ---
-GRID_W, GRID_H = 6, 6
-start = (1, 1)
+GRID_W, GRID_H = 20, 20
+start = (0, 0)
 goal = (5, 5)
 
 # Vision Konstanter (Juster disse efter test)
 PIXEL_DIFF_PIXEL_THRESHOLD = 10.0   # Tærskel for forskel i lysstyrke (Støjfilter)
-FRACTION_CLOSE_THRESHOLD = 0.82     # Frac over dette = forhindring opdaget
-REPLAN_FRAC_THRESHOLD = 0.82       # Frac over dette = robotten er meget tæt på og skal replanne
+FRACTION_CLOSE_THRESHOLD = 0.85     # Frac over dette = forhindring opdaget
+REPLAN_FRAC_THRESHOLD = 0.99       # Frac over dette = robotten er meget tæt på og skal replanne
 MIN_FRAC_FOR_DISTANCE = 0.05
 K_FRAC = 6.0                        # Kalibreringskonstant for afstand
 
@@ -156,14 +157,33 @@ def cell_step_for_heading(heading_deg):
     elif heading_deg == -45: return (-1, 1)
     else: return (0, 0)
 
+
+
+def reverseCommand(commands):
+    reversed_commands = []
+    for angle, dist in reversed(commands):
+        if dist != 0:
+            reversed_commands.append((0, dist))
+        if angle != 0:
+            reversed_commands.append((-angle, 0))
+    return reversed_commands
+
+    
 def cell_in_front(grid_x, grid_y, robot_heading):
     """Beregner grid-cellen umiddelbart foran robotten."""
     dx, dy = cell_step_for_heading(robot_heading)
     return grid_x + dx, grid_y + dy
 
+back_commands = []
+
 def execute_command(angle_deg, dist_cells):
     global robot_heading, grid_x, grid_y
-
+    
+    global back_commands
+    if not returning_home:
+        curr_command = (angle_deg, dist_cells)
+        back_commands.append((angle_deg, dist_cells))
+    
     # Drej
     if angle_deg < 0:
         OurRobot.turn_left(OurRobot.robot, angle_deg)
@@ -171,12 +191,12 @@ def execute_command(angle_deg, dist_cells):
         OurRobot.turn_right(OurRobot.robot, angle_deg)
 
     # Kør frem
-    if dist_cells > 1:
+    if dist_cells == 1:
         # Brug en justeret tid for fremkørsel
         duration = dist_cells * 2.2 # Juster denne faktor 
         OurRobot.drive_forward(OurRobot.robot, duration)
     else:
-        duration = dist_cells * 2.4 # Juster denne faktor 
+        duration = dist_cells * 2.38 # Juster denne faktor 
         OurRobot.drive_forward(OurRobot.robot, duration)
         
             
@@ -210,53 +230,74 @@ command_index = 0
 
 print("D* Lite initialiseret. Starter rute fra:", start, "til:", goal)
 
+returning_home = False   # state flag
+
 try:
     while True:
-        if (grid_x, grid_y) == goal:
-            print("Mål nået!")
-            break
+        
 
-        elif command_index < len(command_queue):
-            angle, dist = command_queue[command_index]
-            print(f"\nCOMMAND {command_index}: Drej {angle}°, Kør {dist} celle(r)")
-            
-            # --- Udfør kommandoen ---
+        # ----------------------------
+        # Goal reached → return to base
+        # ----------------------------
+        if (grid_x, grid_y) == goal and not returning_home:
+            print("Mål nået!")
+            print(back_commands)
+            command_queue = reverseCommand(back_commands)
+            print(command_queue)
+            command_index = 0
+            OurRobot.turn_right(OurRobot.robot, 180)
+            robot_heading += 180
+            returning_home = True
+            print("Returning to base!")
+
+        # ----------------------------
+        # Execute next command if any
+        # ----------------------------
+        if command_queue:
+            angle, dist = command_queue.pop(0)
+
+            print(f"\nCOMMAND: Drej {angle}°, Kør {dist} celle(r)")
             execute_command(angle, dist)
-            command_index += 1
-            
-            # --- Vision Tjek EFTER bevægelse ---
+
+            # ----------------------------
+            # Vision check AFTER movement
+            # ----------------------------
             obstacle_close, frac, dist_cm, frame = detect_close_obstacle()
+
             if dist_cm is not None:
-                # Hvis vi har en afstand, udskriv den formateret
-                print(f"Vision: close={obstacle_close}, frac={frac:.4f},") # dist={dist_cm:.2f} cm
-            else:
-                # Hvis dist_cm er None, udskriv "N/A"
                 print(f"Vision: close={obstacle_close}, frac={frac:.4f}")
-            
-            # Hvis vi ser en stor forhindring tæt på:
+            else:
+                print(f"Vision: close={obstacle_close}, frac={frac:.4f}")
+
+            # ----------------------------
+            # Obstacle → D* replanning
+            # ----------------------------
             if frac > REPLAN_FRAC_THRESHOLD:
                 print(">>> TÆT PÅ FORHINDRING! Starter D* replanlægning. <<<")
 
-                # Find cellen foran robotten
                 fx, fy = cell_in_front(grid_x, grid_y, robot_heading)
-                
-                # Opdater D* Lite med den nye forhindring
                 wall = Wall(fx, fy, fx, fy)
-                new_commands = controller.handle_obstacle(wall) 
-                
+
+                new_commands = controller.handle_obstacle(wall)
+
                 if new_commands:
                     command_queue = new_commands
                     command_index = 0
                 else:
                     print("D* fandt ingen rute – venter.")
 
+        # ----------------------------
+        # No commands available
+        # ----------------------------
         else:
-            # Ingen gyldig rute fundet eller mål nået
-            print("Ingen flere kommandoer – Blokeret.")
-            time.sleep(0.5) 
-            break
+            if returning_home:
+                print("Tilbage ved start – færdig.")
+                break
+            else:
+                print("Ingen flere kommandoer – venter.")
+                time.sleep(0.5)
 
-        time.sleep(0.5) # Kort pause før næste loop-iteration
+        time.sleep(0.5)
 
 except KeyboardInterrupt:
     pass
